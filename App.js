@@ -1,8 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Spreadsheet from './components/Spreadsheet';
 import OrderPopup from './components/OrderPopup';
 import GlutenFreePopup from './components/GlutenFreePopup';
+
+const STORAGE_KEY = 'pizzaSchedulerData';
+
 
 const generateTimeSlots = () => {
   const timeSlots = [];
@@ -92,7 +96,6 @@ const App = () => {
   
     setTimeSlots(updatedTimeSlots);
   };
-  
 
   const moveOrder = (order, targetTimeSlot, targetPosition) => {
     const updatedTimeSlots = timeSlots.map((slot) => {
@@ -104,11 +107,33 @@ const App = () => {
         };
       }
       if (slot.id === targetTimeSlot.id) {
-        const updatedOrder = { ...order, position: targetPosition, timeSlotId: targetTimeSlot.id };
-        return {
-          ...slot,
-          orders: [...slot.orders, updatedOrder],
-        };
+        const existingOrderIndex = slot.orders.findIndex(
+          (o) => o.position === targetPosition
+        );
+        if (existingOrderIndex !== -1) {
+          const updatedOrders = [...slot.orders];
+          updatedOrders.splice(existingOrderIndex, 1, {
+            ...order,
+            position: targetPosition,
+            timeSlotId: targetTimeSlot.id,
+          });
+          return {
+            ...slot,
+            orders: updatedOrders,
+          };
+        } else {
+          return {
+            ...slot,
+            orders: [
+              ...slot.orders,
+              {
+                ...order,
+                position: targetPosition,
+                timeSlotId: targetTimeSlot.id,
+              },
+            ],
+          };
+        }
       }
       return slot;
     });

@@ -24,19 +24,25 @@ const Spreadsheet = ({ timeSlots, onAddOrder, onDeleteOrder, onMoveOrder, editMo
         <Text style={styles.orderText}>{order.name}</Text>
         <Text style={styles.orderSize}>{order.size}</Text>
         {order.isGlutenFree && <Text style={styles.glutenFreeText}>GF</Text>}
+        {editMode && (
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={() => onDeleteOrder(order)}
+          >
+            <Text style={styles.deleteButtonText}>X</Text>
+          </TouchableOpacity>
+        )}
       </TouchableOpacity>
     );
   };
 
   const renderTimeSlot = (timeSlot, index) => {
     const handleColumnPress = (position) => {
-      onAddOrder(timeSlot, position);
-    };
-
-    const handleOrderMove = () => {
-      if (selectedOrder) {
-        onMoveOrder(selectedOrder, timeSlot, selectedOrder.position);
+      if (editMode && selectedOrder) {
+        onMoveOrder(selectedOrder, timeSlot, position);
         setSelectedOrder(null);
+      } else {
+        onAddOrder(timeSlot, position);
       }
     };
 
@@ -46,12 +52,11 @@ const Spreadsheet = ({ timeSlots, onAddOrder, onDeleteOrder, onMoveOrder, editMo
           <Text style={styles.timeSlotText}>{timeSlot.time}</Text>
         </View>
         <TouchableOpacity
-        style={[
-          styles.orderCell,
-          { width: '40%', marginRight: '6%', backgroundColor: 'rgba(255, 0, 0, 0.2)' },
-        ]}
+          style={[
+            styles.orderCell,
+            { width: '40%', marginRight: '6%', backgroundColor: 'rgba(255, 0, 0, 0.2)' },
+          ]}
           onPress={() => handleColumnPress('left')}
-          onLongPress={handleOrderMove}
         >
           <View style={styles.orderRow}>
             {timeSlot.orders
@@ -60,12 +65,11 @@ const Spreadsheet = ({ timeSlots, onAddOrder, onDeleteOrder, onMoveOrder, editMo
           </View>
         </TouchableOpacity>
         <TouchableOpacity
-        style={[
-          styles.orderCell,
-          { width: '40%', marginLeft: '5%', backgroundColor: 'rgba(0, 255, 0, 0.2)' },
-        ]}
+          style={[
+            styles.orderCell,
+            { width: '40%', marginLeft: '5%', backgroundColor: 'rgba(0, 255, 0, 0.2)' },
+          ]}
           onPress={() => handleColumnPress('right')}
-          onLongPress={handleOrderMove}
         >
           <View style={styles.orderRow}>
             {timeSlot.orders
@@ -76,7 +80,7 @@ const Spreadsheet = ({ timeSlots, onAddOrder, onDeleteOrder, onMoveOrder, editMo
       </View>
     );
   };
-  
+
   return (
     <View style={{ flex: 1, flexDirection: 'row' }}>
       <View style={styles.container}>
@@ -89,6 +93,7 @@ const Spreadsheet = ({ timeSlots, onAddOrder, onDeleteOrder, onMoveOrder, editMo
     </View>
   );
 };
+
 
 const styles = StyleSheet.create({
   container: {
@@ -164,6 +169,19 @@ const styles = StyleSheet.create({
   glutenFreeText: {
     fontSize: 12,
     color: 'green',
+  },
+  deleteButton: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: 'red',
+    borderRadius: 5,
+    padding: 4,
+  },
+  deleteButtonText: {
+    fontSize: 12,
+    color: 'white',
+    fontWeight: 'bold',
   },
 });
 
