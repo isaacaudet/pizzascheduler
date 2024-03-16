@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Spreadsheet from './components/Spreadsheet';
 import OrderPopup from './components/OrderPopup';
 import GlutenFreePopup from './components/GlutenFreePopup';
+import SettingsPopup from './components/SettingsPopup';
 
 const STORAGE_KEY = 'pizzaSchedulerData';
 
@@ -39,6 +40,7 @@ const App = () => {
   const [isGlutenFreePopupVisible, setIsGlutenFreePopupVisible] = useState(false);
   const [inboxVisible, setInboxVisible] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [isSettingsPopupVisible, setIsSettingsPopupVisible] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -96,6 +98,12 @@ const App = () => {
           position: selectedPosition,
           timeSlotId: selectedTimeSlot.id,
         };
+        const updatedOrders = [...slot.orders];
+        if (selectedPosition === 'left') {
+          updatedOrders.push(newOrder);
+        } else {
+          updatedOrders.push(newOrder);
+        }
         if (order.isGlutenFree) {
           if (order.size === 'small') {
             setGlutenFreeSmallCount((prevCount) => prevCount - 1);
@@ -105,7 +113,7 @@ const App = () => {
         }
         return {
           ...slot,
-          orders: [...slot.orders, newOrder],
+          orders: updatedOrders,
         };
       }
       return slot;
@@ -147,47 +155,20 @@ const App = () => {
         };
       }
       if (slot.id === targetTimeSlot.id) {
-        const existingOrderIndex = slot.orders.findIndex(
-          (o) => o.position === targetPosition
-        );
-        if (existingOrderIndex !== -1) {
-          Alert.alert(
-            'Overwrite Order',
-            'An order already exists at the target position. Do you want to overwrite it?',
-            [
-              {
-                text: 'Cancel',
-                style: 'cancel',
-              },
-              {
-                text: 'Overwrite',
-                onPress: () => {
-                  const updatedOrders = [...slot.orders];
-                  updatedOrders.splice(existingOrderIndex, 1, {
-                    ...order,
-                    position: targetPosition,
-                    timeSlotId: targetTimeSlot.id,
-                  });
-                  setTimeSlots(
-                    timeSlots.map((s) =>
-                      s.id === targetTimeSlot.id ? { ...s, orders: updatedOrders } : s
-                    )
-                  );
-                },
-              },
-            ]
-          );
-        } else {
+        const updatedOrders = [...slot.orders];
+        const targetOrders = updatedOrders.filter((o) => o.position === targetPosition);
+        if (
+          (targetOrders.length === 0 && order.size === 'large') ||
+          (targetOrders.length < 2 && order.size === 'small')
+        ) {
+          updatedOrders.push({
+            ...order,
+            position: targetPosition,
+            timeSlotId: targetTimeSlot.id,
+          });
           return {
             ...slot,
-            orders: [
-              ...slot.orders,
-              {
-                ...order,
-                position: targetPosition,
-                timeSlotId: targetTimeSlot.id,
-              },
-            ],
+            orders: updatedOrders,
           };
         }
       }
@@ -208,15 +189,25 @@ const App = () => {
     });
 
     if (soonestTimeSlot) {
-      const leftPosition = soonestTimeSlot.orders.filter((o) => o.position === 'left').length;
-      const rightPosition = soonestTimeSlot.orders.filter((o) => o.position === 'right').length;
+      const leftOrders = soonestTimeSlot.orders.filter((o) => o.position === 'left');
+      const rightOrders = soonestTimeSlot.orders.filter((o) => o.position === 'right');
 
-      if (leftPosition < 2) {
-        addOrder({ name, size, isGlutenFree }, soonestTimeSlot, 'left');
-      } else if (rightPosition < 2) {
-        addOrder({ name, size, isGlutenFree }, soonestTimeSlot, 'right');
-      } else {
-        console.log('No available position in the soonest time slot.');
+      if (size === 'small') {
+        if (leftOrders.length < 2) {
+          addOrder({ name, size, isGlutenFree }, soonestTimeSlot, 'left');
+        } else if (rightOrders.length < 2) {
+          addOrder({ name, size, isGlutenFree }, soonestTimeSlot, 'right');
+        } else {
+          console.log('No available position for a small pizza in the soonest time slot.');
+        }
+      } else if (size === 'large') {
+        if (leftOrders.length === 0) {
+          addOrder({ name, size, isGlutenFree }, soonestTimeSlot, 'left');
+        } else if (rightOrders.length === 0) {
+          addOrder({ name, size, isGlutenFree }, soonestTimeSlot, 'right');
+        } else {
+          console.log('No available position for a large pizza in the soonest time slot.');
+        }
       }
     } else {
       console.log('No available time slot for the order.');
@@ -244,6 +235,49 @@ const App = () => {
     setEditMode((prevMode) => !prevMode);
   };
 
+  const openSettingsPopup = () => {
+    setIsSettingsPopupVisible(true);
+  };
+
+  const closeSettingsPopup = () => {
+    setIsSettingsPopupVisible(false);
+  };
+
+  const clearDay = () => {
+    setTimeSlots(generateTimeSlots());
+    setGlutenFreeSmallCount(0);
+    setGlutenFreeLargeCount(0);
+  };
+
+  const incrementTimeSlots = (minutes) => {
+    const updatedTimeSlots = timeSlots.map((slot) => {
+      const [hours, mins] = slot.time.split(':');
+      const newTime = new Date();
+      newTime.setHours(parseInt(hours, 10));
+      newTime.setMinutes(parseInt(mins, 10) + minutes);
+      const newHours = newTime.getHours();
+      const newMinutes = newTime.getMinutes();
+      const formattedTime = `${newHours}:${newMinutes < 10 ? '0' : ''}${newMinutes}`;
+      return {
+        ...slot,
+        time: formattedTime,
+      };
+    });
+    setTimeSlots(updatedTimeSlots);
+  };
+
+  const getSoonestAvailableTimeSlot = () => {
+    const currentTime = new Date();
+    return timeSlots.find((slot) => {
+      const slotTime = new Date(`${currentTime.toDateString()} ${slot.time}`);
+      return (
+        slotTime >= currentTime &&
+        slot.orders.filter((o) => o.position === 'left').length < 2 &&
+        slot.orders.filter((o) => o.position === 'right').length < 2
+      );
+    });
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -258,6 +292,9 @@ const App = () => {
         <TouchableOpacity style={styles.inboxButton} onPress={toggleInbox}>
           <Text style={styles.inboxButtonText}>Inbox</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={styles.settingsButton} onPress={openSettingsPopup}>
+          <Text style={styles.settingsButtonText}>Settings</Text>
+        </TouchableOpacity>
       </View>
       {inboxVisible && (
         <View style={styles.inbox}>
@@ -271,6 +308,7 @@ const App = () => {
         onDeleteOrder={deleteOrder}
         onMoveOrder={moveOrder}
         editMode={editMode}
+        soonestAvailableTimeSlot={getSoonestAvailableTimeSlot()}
       />
       <OrderPopup
         visible={selectedTimeSlot !== null}
@@ -283,6 +321,12 @@ const App = () => {
         smallCount={glutenFreeSmallCount}
         largeCount={glutenFreeLargeCount}
         onUpdate={updateGlutenFreeCount}
+      />
+      <SettingsPopup
+        visible={isSettingsPopupVisible}
+        onClose={closeSettingsPopup}
+        onClearDay={clearDay}
+        onIncrementTimeSlots={incrementTimeSlots}
       />
     </View>
   );
@@ -328,6 +372,16 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   inboxButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  settingsButton: {
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 5,
+  },
+  settingsButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
   },
