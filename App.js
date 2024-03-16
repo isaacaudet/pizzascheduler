@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Spreadsheet from './components/Spreadsheet';
 import OrderPopup from './components/OrderPopup';
 import GlutenFreePopup from './components/GlutenFreePopup';
 
 const STORAGE_KEY = 'pizzaSchedulerData';
-
 
 const generateTimeSlots = () => {
   const timeSlots = [];
@@ -32,7 +31,7 @@ const generateTimeSlots = () => {
 };
 
 const App = () => {
-  const [timeSlots, setTimeSlots] = useState(generateTimeSlots());
+  const [timeSlots, setTimeSlots] = useState([]);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState(null);
   const [selectedPosition, setSelectedPosition] = useState(null);
   const [glutenFreeSmallCount, setGlutenFreeSmallCount] = useState(0);
@@ -40,6 +39,43 @@ const App = () => {
   const [isGlutenFreePopupVisible, setIsGlutenFreePopupVisible] = useState(false);
   const [inboxVisible, setInboxVisible] = useState(false);
   const [editMode, setEditMode] = useState(false);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    saveData();
+  }, [timeSlots, glutenFreeSmallCount, glutenFreeLargeCount]);
+
+  const loadData = async () => {
+    try {
+      const data = await AsyncStorage.getItem(STORAGE_KEY);
+      if (data !== null) {
+        const { timeSlots, glutenFreeSmallCount, glutenFreeLargeCount } = JSON.parse(data);
+        setTimeSlots(timeSlots);
+        setGlutenFreeSmallCount(glutenFreeSmallCount);
+        setGlutenFreeLargeCount(glutenFreeLargeCount);
+      } else {
+        setTimeSlots(generateTimeSlots());
+      }
+    } catch (error) {
+      console.log('Error loading data:', error);
+    }
+  };
+
+  const saveData = async () => {
+    try {
+      const data = JSON.stringify({
+        timeSlots,
+        glutenFreeSmallCount,
+        glutenFreeLargeCount,
+      });
+      await AsyncStorage.setItem(STORAGE_KEY, data);
+    } catch (error) {
+      console.log('Error saving data:', error);
+    }
+  };
 
   const openOrderPopup = (timeSlot, position) => {
     setSelectedTimeSlot(timeSlot);
@@ -58,6 +94,7 @@ const App = () => {
           ...order,
           id: Date.now().toString(),
           position: selectedPosition,
+          timeSlotId: selectedTimeSlot.id,
         };
         if (order.isGlutenFree) {
           if (order.size === 'small') {
@@ -73,27 +110,30 @@ const App = () => {
       }
       return slot;
     });
-  
+
     setTimeSlots(updatedTimeSlots);
     closeOrderPopup();
   };
-  
+
   const deleteOrder = (order) => {
     const updatedTimeSlots = timeSlots.map((slot) => {
-      const updatedOrders = slot.orders.filter((o) => o.id !== order.id);
-      if (order.isGlutenFree) {
-        if (order.size === 'small') {
-          setGlutenFreeSmallCount((prevCount) => prevCount + 1);
-        } else {
-          setGlutenFreeLargeCount((prevCount) => prevCount + 1);
+      if (slot.id === order.timeSlotId) {
+        const updatedOrders = slot.orders.filter((o) => o.id !== order.id);
+        if (order.isGlutenFree) {
+          if (order.size === 'small') {
+            setGlutenFreeSmallCount((prevCount) => prevCount + 1);
+          } else if (order.size === 'large') {
+            setGlutenFreeLargeCount((prevCount) => prevCount + 1);
+          }
         }
+        return {
+          ...slot,
+          orders: updatedOrders,
+        };
       }
-      return {
-        ...slot,
-        orders: updatedOrders,
-      };
+      return slot;
     });
-  
+
     setTimeSlots(updatedTimeSlots);
   };
 
@@ -111,16 +151,32 @@ const App = () => {
           (o) => o.position === targetPosition
         );
         if (existingOrderIndex !== -1) {
-          const updatedOrders = [...slot.orders];
-          updatedOrders.splice(existingOrderIndex, 1, {
-            ...order,
-            position: targetPosition,
-            timeSlotId: targetTimeSlot.id,
-          });
-          return {
-            ...slot,
-            orders: updatedOrders,
-          };
+          Alert.alert(
+            'Overwrite Order',
+            'An order already exists at the target position. Do you want to overwrite it?',
+            [
+              {
+                text: 'Cancel',
+                style: 'cancel',
+              },
+              {
+                text: 'Overwrite',
+                onPress: () => {
+                  const updatedOrders = [...slot.orders];
+                  updatedOrders.splice(existingOrderIndex, 1, {
+                    ...order,
+                    position: targetPosition,
+                    timeSlotId: targetTimeSlot.id,
+                  });
+                  setTimeSlots(
+                    timeSlots.map((s) =>
+                      s.id === targetTimeSlot.id ? { ...s, orders: updatedOrders } : s
+                    )
+                  );
+                },
+              },
+            ]
+          );
         } else {
           return {
             ...slot,
@@ -139,6 +195,32 @@ const App = () => {
     });
 
     setTimeSlots(updatedTimeSlots);
+  };
+
+  const receivePOSOrder = (order) => {
+    const { name, size, isGlutenFree, timestamp } = order;
+    const currentTime = new Date();
+    const orderTime = new Date(timestamp);
+
+    const soonestTimeSlot = timeSlots.find((slot) => {
+      const slotTime = new Date(`${currentTime.toDateString()} ${slot.time}`);
+      return slotTime >= orderTime;
+    });
+
+    if (soonestTimeSlot) {
+      const leftPosition = soonestTimeSlot.orders.filter((o) => o.position === 'left').length;
+      const rightPosition = soonestTimeSlot.orders.filter((o) => o.position === 'right').length;
+
+      if (leftPosition < 2) {
+        addOrder({ name, size, isGlutenFree }, soonestTimeSlot, 'left');
+      } else if (rightPosition < 2) {
+        addOrder({ name, size, isGlutenFree }, soonestTimeSlot, 'right');
+      } else {
+        console.log('No available position in the soonest time slot.');
+      }
+    } else {
+      console.log('No available time slot for the order.');
+    }
   };
 
   const openGlutenFreePopup = () => {
