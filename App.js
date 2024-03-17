@@ -304,6 +304,23 @@ const App = () => {
     setTimeSlots(updatedTimeSlots);
   };
 
+  const decrementTimeSlots = (minutes) => {
+    const updatedTimeSlots = timeSlots.map((slot) => {
+      const [hours, mins] = slot.time.split(':');
+      const newTime = new Date();
+      newTime.setHours(parseInt(hours, 10));
+      newTime.setMinutes(parseInt(mins, 10) - minutes);
+      const newHours = newTime.getHours();
+      const newMinutes = newTime.getMinutes();
+      const formattedTime = `${newHours}:${newMinutes < 10 ? '0' : ''}${newMinutes}`;
+      return {
+        ...slot,
+        time: formattedTime,
+      };
+    });
+    setTimeSlots(updatedTimeSlots);
+  };
+
   const getSoonestAvailableTimeSlot = () => {
     const currentTime = new Date();
     return timeSlots.find((slot) => {
@@ -364,6 +381,8 @@ const App = () => {
         onClose={closeSettingsPopup}
         onClearDay={clearDay}
         onIncrementTimeSlots={incrementTimeSlots}
+        onDecrementTimeSlots={decrementTimeSlots}
+
       />
     </View>
   );
