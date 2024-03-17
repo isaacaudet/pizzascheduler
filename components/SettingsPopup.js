@@ -1,8 +1,15 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet } from 'react-native';
 
-const SettingsPopup = ({ visible, onClose, onClearDay, onIncrementTimeSlots }) => {
+const SettingsPopup = ({
+  visible,
+  onClose,
+  onClearDay,
+  onIncrementTimeSlots,
+  onDecrementTimeSlots,
+}) => {
   const [incrementMinutes, setIncrementMinutes] = useState('');
+  const [decrementMinutes, setDecrementMinutes] = useState('');
 
   const handleClearDay = () => {
     onClearDay();
@@ -15,7 +22,14 @@ const SettingsPopup = ({ visible, onClose, onClearDay, onIncrementTimeSlots }) =
       onIncrementTimeSlots(minutes);
       setIncrementMinutes('');
     }
-    onClose();
+  };
+
+  const handleDecrementTimeSlots = () => {
+    const minutes = parseInt(decrementMinutes, 10);
+    if (!isNaN(minutes)) {
+      onDecrementTimeSlots(minutes);
+      setDecrementMinutes('');
+    }
   };
 
   return (
@@ -26,16 +40,28 @@ const SettingsPopup = ({ visible, onClose, onClearDay, onIncrementTimeSlots }) =
           <TouchableOpacity style={styles.clearButton} onPress={handleClearDay}>
             <Text style={styles.clearButtonText}>Clear Day</Text>
           </TouchableOpacity>
-          <View style={styles.incrementContainer}>
-            <Text style={styles.incrementText}>Increment Time Slots (minutes):</Text>
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Increment Time Slots (minutes):</Text>
             <TextInput
-              style={styles.incrementInput}
+              style={styles.input}
               keyboardType="numeric"
               value={incrementMinutes}
               onChangeText={setIncrementMinutes}
             />
-            <TouchableOpacity style={styles.incrementButton} onPress={handleIncrementTimeSlots}>
-              <Text style={styles.incrementButtonText}>Increment</Text>
+            <TouchableOpacity style={styles.button} onPress={handleIncrementTimeSlots}>
+              <Text style={styles.buttonText}>Increment</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Decrement Time Slots (minutes):</Text>
+            <TextInput
+              style={styles.input}
+              keyboardType="numeric"
+              value={decrementMinutes}
+              onChangeText={setDecrementMinutes}
+            />
+            <TouchableOpacity style={styles.button} onPress={handleDecrementTimeSlots}>
+              <Text style={styles.buttonText}>Decrement</Text>
             </TouchableOpacity>
           </View>
           <TouchableOpacity style={styles.closeButton} onPress={onClose}>
@@ -77,16 +103,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  incrementContainer: {
+  inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
   },
-  incrementText: {
+  inputLabel: {
     fontSize: 16,
     marginRight: 8,
   },
-  incrementInput: {
+  input: {
     borderWidth: 1,
     borderColor: '#ccc',
     borderRadius: 5,
@@ -94,13 +120,13 @@ const styles = StyleSheet.create({
     marginRight: 8,
     width: 80,
   },
-  incrementButton: {
+  button: {
     backgroundColor: '#f0f0f0',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 5,
   },
-  incrementButtonText: {
+  buttonText: {
     fontSize: 16,
     fontWeight: 'bold',
   },

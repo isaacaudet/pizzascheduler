@@ -47,18 +47,23 @@ const App = () => {
   }, []);
 
   useEffect(() => {
+    // console.log('Updated timeSlots state:', timeSlots); // Add this line
+    // console.log('Updated glutenFreeSmallCount:', glutenFreeSmallCount); // Add this line
+    // console.log('Updated glutenFreeLargeCount:', glutenFreeLargeCount); // Add this line
     saveData();
   }, [timeSlots, glutenFreeSmallCount, glutenFreeLargeCount]);
 
   const loadData = async () => {
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEY);
+      console.log('Loaded data from AsyncStorage:', data); // Add this line
       if (data !== null) {
         const { timeSlots, glutenFreeSmallCount, glutenFreeLargeCount } = JSON.parse(data);
         setTimeSlots(timeSlots);
         setGlutenFreeSmallCount(glutenFreeSmallCount);
         setGlutenFreeLargeCount(glutenFreeLargeCount);
       } else {
+        console.log('No data found in AsyncStorage, generating default timeslots'); // Add this line
         setTimeSlots(generateTimeSlots());
       }
     } catch (error) {
@@ -90,6 +95,8 @@ const App = () => {
   };
 
   const addOrder = (order) => {
+    console.log('Adding order:', order); // Add this line
+    console.log('Selected time slot:', selectedTimeSlot); // Add this line
     const updatedTimeSlots = timeSlots.map((slot) => {
       if (slot.id === selectedTimeSlot.id) {
         const newOrder = {
@@ -111,6 +118,7 @@ const App = () => {
             setGlutenFreeLargeCount((prevCount) => prevCount - 1);
           }
         }
+        console.log('Updated orders for time slot:', updatedOrders); // Add this line
         return {
           ...slot,
           orders: updatedOrders,
@@ -119,6 +127,7 @@ const App = () => {
       return slot;
     });
 
+    console.log('Updated timeSlots after adding order:', updatedTimeSlots); // Add this line
     setTimeSlots(updatedTimeSlots);
     closeOrderPopup();
   };
@@ -144,23 +153,48 @@ const App = () => {
 
     setTimeSlots(updatedTimeSlots);
   };
-
   const moveOrder = (order, targetTimeSlot, targetPosition) => {
     const updatedTimeSlots = timeSlots.map((slot) => {
       if (slot.id === order.timeSlotId) {
-        const updatedOrders = slot.orders.filter((o) => o.id !== order.id);
+        // This is the current time slot of the order
+        const updatedOrders = slot.orders.map((o) => {
+          if (o.id === order.id) {
+            // This is the order being moved
+            if (slot.id === targetTimeSlot.id) {
+              // If moving within the same time slot, update the position
+              console.log('Updating order position:', order, 'from', o.position, 'to', targetPosition);
+              return {
+                ...o,
+                position: targetPosition,
+              };
+            } else {
+              // If moving to a different time slot, remove the order from the current slot
+              console.log('Removing order from current time slot:', slot.id);
+              return null;
+            }
+          }
+          return o;
+        });
+  
+        // Filter out the removed order (if moving to a different time slot)
+        const filteredOrders = updatedOrders.filter(Boolean);
+  
         return {
           ...slot,
-          orders: updatedOrders,
+          orders: filteredOrders,
         };
       }
+  
       if (slot.id === targetTimeSlot.id) {
+        // Add the order to the target time slot
         const updatedOrders = [...slot.orders];
         const targetOrders = updatedOrders.filter((o) => o.position === targetPosition);
+  
         if (
           (targetOrders.length === 0 && order.size === 'large') ||
           (targetOrders.length < 2 && order.size === 'small')
         ) {
+          console.log('Moving order:', order, 'to', targetPosition, 'in time slot', targetTimeSlot.id);
           updatedOrders.push({
             ...order,
             position: targetPosition,
@@ -170,11 +204,15 @@ const App = () => {
             ...slot,
             orders: updatedOrders,
           };
+        } else {
+          console.log('Cannot move order:', order, 'to', targetPosition, 'in time slot', targetTimeSlot.id, 'due to position conflict');
+          return slot;
         }
       }
+  
       return slot;
     });
-
+  
     setTimeSlots(updatedTimeSlots);
   };
 
@@ -298,7 +336,6 @@ const App = () => {
       </View>
       {inboxVisible && (
         <View style={styles.inbox}>
-          {/* Render inbox content */}
           <Text>Inbox</Text>
         </View>
       )}
@@ -392,4 +429,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default App;
+export default App; 
